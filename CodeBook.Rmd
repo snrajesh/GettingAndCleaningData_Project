@@ -1,0 +1,624 @@
+---
+title: "Getting and Cleaning Data: Course Project"
+author: "Rajesh Nambiar"
+date: "October 23, 2015"
+output: html_document
+---
+
+## Project Description:
+
+The purpose of this project is to demonstrate your ability to collect, work with, and clean a data set. The goal is to prepare tidy data that can be used for later analysis
+
+
+## Raw Data: 
+
+One of the most exciting areas in all of data science right now is wearable computing - see for example [this article](http://www.insideactivitytracking.com/data-science-activity-tracking-and-the-battle-for-the-worlds-top-sports-brand/). Companies like Fitbit, Nike, and Jawbone Up are racing to develop the most advanced algorithms to attract new users. 
+The data used for this from the course website represent data collected from the accelerometers from the Samsung Galaxy S smartphone. 
+
+A full description is available at the site where the data was obtained: 
+
+[Details about the study data](http://archive.ics.uci.edu/ml/datasets/Human+Activity+Recognition+Using+Smartphones) 
+
+The data for the project: 
+
+[Compressed Data](https://d396qusza40orc.cloudfront.net/getdata%2Fprojectfiles%2FUCI%20HAR%20Dataset.zip) 
+
+
+### Data Collection: 
+
+The experiments have been carried out with a group of 30 volunteers within an age bracket of 19-48 years. Each person performed six activities (WALKING, WALKING_UPSTAIRS, WALKING_DOWNSTAIRS, SITTING, STANDING, LAYING) wearing a smartphone (Samsung Galaxy S II) on the waist. Using its embedded accelerometer and gyroscope, we captured 3-axial linear acceleration and 3-axial angular velocity at a constant rate of 50Hz. The experiments have been video-recorded to label the data manually. The obtained dataset has been randomly partitioned into two sets, where 70% of the volunteers was selected for generating the training data and 30% the test data. 
+
+The sensor signals (accelerometer and gyroscope) were pre-processed by applying noise filters and then sampled in fixed-width sliding windows of 2.56 sec and 50% overlap (128 readings/window). The sensor acceleration signal, which has gravitational and body motion components, was separated using a Butterworth low-pass filter into body acceleration and gravity. The gravitational force is assumed to have only low frequency components, therefore a filter with 0.3 Hz cutoff frequency was used. From each window, a vector of features was obtained by calculating variables from the time and frequency domain. See 'features_info.txt' for more details. 
+
+**For each record it is provided**:
+
+- Triaxial acceleration from the accelerometer (total acceleration) and the estimated body acceleration.
+- Triaxial Angular velocity from the gyroscope. 
+- A 561-feature vector with time and frequency domain variables. 
+- Its activity label. 
+- An identifier of the subject who carried out the experiment.
+
+**The dataset includes the following files**:
+
+- 'features.txt': List of all features.
+
+- 'activity_labels.txt': Links the class labels with their activity name.
+
+- 'train/X_train.txt': Training set.
+
+- 'train/y_train.txt': Training labels.
+
+- 'test/X_test.txt': Test set.
+
+- 'test/y_test.txt': Test labels.
+
+The following files are available for the train and test data. Their descriptions are equivalent. 
+
+- 'train/subject_train.txt': Each row identifies the subject who performed the activity for each window sample. Its range is from 1 to 30. 
+
+- 'train/Inertial Signals/total_acc_x_train.txt': The acceleration signal from the smartphone accelerometer X axis in standard gravity units 'g'. Every row shows a 128 element vector. The same description applies for the 'total_acc_x_train.txt' and 'total_acc_z_train.txt' files for the Y and Z axis. 
+
+- 'train/Inertial Signals/body_acc_x_train.txt': The body acceleration signal obtained by subtracting the gravity from the total acceleration. 
+
+- 'train/Inertial Signals/body_gyro_x_train.txt': The angular velocity vector measured by the gyroscope for each window sample. The units are radians/second. 
+
+**Notes**: 
+
+- Features are normalized and bounded within [-1,1].
+- Each feature vector is a row on the text file.
+
+For more information about this dataset contact: activityrecognition@smartlab.ws
+
+**License**:
+
+Use of this dataset in publications must be acknowledged by referencing the following publication [1] 
+
+[1] Davide Anguita, Alessandro Ghio, Luca Oneto, Xavier Parra and Jorge L. Reyes-Ortiz. Human Activity Recognition on Smartphones using a Multiclass Hardware-Friendly Support Vector Machine. International Workshop of Ambient Assisted Living (IWAAL 2012). Vitoria-Gasteiz, Spain. Dec 2012
+
+This dataset is distributed AS-IS and no responsibility implied or explicit can be addressed to the authors or their institutions for its use or misuse. Any commercial use is prohibited.
+
+Jorge L. Reyes-Ortiz, Alessandro Ghio, Luca Oneto, Davide Anguita. November 2012.
+
+
+###############################################################################################  
+
+##Data Analysis Synopsis:
+
+1. The data is downloaded, uncompressed, and loaded into individual data frame tables using **dplyr** package.
+2. Each file is loaded using **read.table** into its own data frame table (**tbl_df**) and assigned appropraite column names. 
+3. The values in activity_label and features are reformatted to be tidy. 
+4. The appraoch taken for reformating the values is : 
+    * Removed all non-alphanumeric characters (punctuations)   
+    * converted the text to lower case (eventhough camelCase is better for readability, to keep complaint with the lecture slides this is converetd to lower case)  
+    * Also the frequency domain measurement variables (starting with "f" are transalted to "frequency"  
+    * And the time domain measurement variables (starting with "t" are translated to "time"  
+    * The typographical error for "bodybody" was replaced with "body"  
+    * There were some duplicate measurements (proably truncated due to size) are made unique by appending activityid to the description.  
+5. The measurement columns (x file) are named using feature names which make it descriptive & tidy variable name.
+6. All the corresponding/relational data from feature-measurement(X data), subject data, activity (Y data) and activityLabels is combined for each group using **left_join** (*dplyr* package) and then are merged together to create a new dataset mergedDataset with using **bind_rows** (*dplyr* package). 
+7. The columns with mean and std functions are extracted out to create a new dataset called tidyDataset. 
+8. From the cleaned-up data, an new tidy data set (called *tidyDataSummary* is derived with the average of each variable for each activity and each subject (using *summarize_each*). The column-names are prefixed with "avg" to indicate that it is the average measurement. All the non-measurement columns are converted to "factor".
+  
+  
+## Loading and preprocessing the data
+
+The data is downloaded, uncompressed, and loaded into individual data frame tables using **dplyr** package.
+
+
+### Download and unzip file:
+```{r download_file, echo=TRUE, cache=TRUE, eval=FALSE}
+##
+## Step 0: Download and unzip file
+##
+
+
+### A. Download file and unzip file
+download.file(url = "https://d396qusza40orc.cloudfront.net/getdata%2Fprojectfiles%2FUCI%20HAR%20Dataset.zip", 
+              destfile = "./getdata-projectfiles-UCI HAR Dataset.zip")
+unzip("./getdata-projectfiles-UCI HAR Dataset.zip")
+
+```
+
+  
+### Load data:  
+
+Each file is loaded into a data frame table using **dplyr** package and assigned appropraite column names. The variable-names are reformatted to be tidy. The measurement columns are named using tidy feature names.
+
+```{r, echo=TRUE, eval=TRUE, results="hide", message=FALSE}
+  ### Load dplyr package for easy data manipulation (install if needed)
+  if (! require("dplyr")) {
+    install.packages('dplyr'); 
+    library(dplyr);
+  }
+```
+
+**Reformat values**
+
+The measurements in X data file is the 561 features from the feature list. The features has lot of non-alphanumeric characters (punctuations) in it, which is not in a tidy column name format. A generic fuction is used for cleaning up data to be no punctuations and all characters in lower case.
+
+```{r reformat_name, echo=TRUE, eval=TRUE}
+## A. custom function to standardize column-names -  removes non-alphaNumeric & convert into lower-case
+
+reformatColumnName <- function(vColumnName = NULL) {
+    
+    # substitute/remove non-alphanumeric charcter, and convert to lower 
+    vColumnName <-  tolower(stringr::str_replace_all(vColumnName,"[[:punct:]]", ""))
+    
+    # specific to the values in features-list
+    # if first character is t change it to "time", if it is "f" change it to "frequency"
+    vFirst <- substring(vColumnName,1,1)
+    vFirst <- gsub(pattern="[t]", vFirst, replacement="time")
+    vFirst <- gsub(pattern="[f]", vFirst, replacement="frequency")
+    
+    #replace first character with the above replacement value
+    vColumnName <- paste(vFirst, substring(vColumnName, 2), sep = "")
+    rm(vFirst)
+    
+    # specific to feature list: there is a typo - body is documented as bodybody
+    vColumnName <- gsub('bodybody','body', vColumnName)
+    
+    return(vColumnName)    
+}   
+
+```
+
+
+**Load Activity-list**  
+
+The activity_labels.txt file is loaded into data frame table activityLabels with column-names as activityid and activityRaw. The activity value is reformeted (as lower case with no non-alphanumeric characters) and stored as column activity. This is later used for updating activity in the data set using the activityid in the Y file.  
+
+```{r load_data1, echo=TRUE, eval=FALSE}
+## B. Load Activity-list lookup tables with column-names
+
+activityLabels <- tbl_df(read.table("./UCI HAR Dataset/activity_labels.txt",sep = " ", header = FALSE, 
+                                     as.is = TRUE, col.names = c("activityid", "activityRaw")));
+
+# B2. Clean-up activity-name as these will be added as activity description to the final data set
+activityLabels <- mutate(activityLabels, activity = reformatColumnName(activityRaw) );
+
+```
+
+**Load Features**
+
+The features.txt file is loaded into data frame table features with column-names as featureid and featureRaw. The feature value is reformeted (as lower case with no non-alphanumeric characters) and stored as column feature This is later used for updating the column names of the measurement variables in the data set using their position in the X file.
+
+```{r load_data2, echo=TRUE, eval=TRUE}
+
+# C. Load Features List lookup tables with column-names
+features <- tbl_df(read.table("./UCI HAR Dataset/features.txt",sep = " ", header = FALSE, 
+                              as.is = TRUE, col.names = c("featureid", "featureRaw")));
+
+
+# C2. Clean-up feature-name as these will be used as column-names later for measurements in the final data
+features <- mutate(features, feature = reformatColumnName(featureRaw) );
+
+
+# C3. clean-up duplicate feature values by appending id to it, as these will be used as column-names
+
+tmp <- features %>%
+    group_by(feature) %>%
+    summarize(count=n()) %>%
+    filter(count >1)  %>%                   ## identify feature values with more than one entry
+    left_join(features,by='feature') %>%  ## join to original list to get id
+    mutate(feature = paste0(feature,featureid)) %>%     ## append id to name to make it unique
+    select (featureid,feature, featureRaw); 
+
+features <- features %>%
+    anti_join(tmp,by='featureid') %>%		## get the records that are not in the duplicate list
+    select (featureid,feature, featureRaw)  %>%
+    union(tmp) %>%							## merge it with the corrected values from previous dataset
+    arrange (featureid,feature, featureRaw); 
+
+rm(tmp)
+
+```
+  
+  
+**Load Train Data**
+
+All the Measurement data (X), activity data (Y), and subject data for the "train" data set group is loaded one by one. 
+The measurement data from X_train.txt is loaded into table xTrain, with column name as feature-name from feature-list. A new sequenceid column is populated with sequence# within the file. This is used later for joining/binding all the relevant data together. 
+The activity data from Y_train.txt is loaded into table yTrain, with column name as activityid. A new sequenceid column is populated with sequence# within the file. This is used later for joining/binding all the relevant data together. 
+The subject data from subject_train.txt is loaded into table subjectTrain, with column name as activityid. A new sequenceid column is populated with sequence# within the file. This is used later for joining/binding all the relevant data together. 
+
+
+```{r load_data_train, echo=TRUE, eval=FALSE}
+## D. Load Train Data set
+
+# D1. load X data (measurement data), with column name as feature-name from feature-list
+xTrain <- tbl_df(read.table("./UCI HAR Dataset/train/X_train.txt", header = FALSE, fill = TRUE, 
+                            col.names = features$feature));
+
+# D2. If there are any duplicate activity in the file, the column-names will get appended with .1,.2,etc. 
+# Replace them with x,y,z  
+colnames(xTrain) <- gsub('\\.1','y',gsub('\\.2','z',gsub('\\.3','w',colnames(xTrain))))
+
+# D3. Add seq# to each record to join them with other datasets later
+xTrain <- mutate(xTrain, sequenceid =  row_number())
+
+
+# D4. load Y data (activity-label)
+# Each row identifies the activity performed by the subject for each window sample. Its range is from 1 to 6
+yTrain <- tbl_df(read.table("./UCI HAR Dataset/train/Y_train.txt",header = FALSE, 
+                            col.names = c('activityid')))
+
+# D5. Add seq# to each record to join them with other datasets later
+yTrain <- mutate(yTrain, sequenceid = row_number())
+
+
+# D6. Load subject data - 21 out of 30 subject
+# Each row identifies the subject who performed the activity for each window sample. Its range is from 1 to 30
+subjectTrain <- tbl_df(read.table("./UCI HAR Dataset/train/subject_train.txt",sep = "", header = FALSE,
+                                  col.names = c('subjectid')))
+
+# D7. Add seq# to each record to join them with other datasets later
+subjectTrain <- mutate(subjectTrain, sequenceid = row_number())
+
+```
+
+**Load Test Data**
+
+All the Measurement data (X), activity data (Y), and subject data for the "test" data set group is loaded one by one. 
+The measurement data from X_test.txt is loaded into table xTest, with column name as feature-name from feature-list. A new sequenceid column is populated with sequence# within the file. This is used later for joining/binding all the relevant data together. 
+The activity data from Y_test.txt is loaded into table yTest, with column name as activityid. A new sequenceid column is populated with sequence# within the file. This is used later for joining/binding all the relevant data together. 
+The subject data from subject_test.txt is loaded into table subjectTest, with column name as activityid. A new sequenceid column is populated with sequence# within the file. This is used later for joining/binding all the relevant data together. 
+
+```{r load_data_test, echo=TRUE, eval=FALSE}
+
+## E. Load Test Data set
+
+# E1. load X data (measurement data), with column name as feature-name from feature-list
+tbXTest <- tbl_df(read.table("./UCI HAR Dataset/test/X_test.txt", header = FALSE, fill = TRUE, 
+                             col.names = tbFeatures$feature))
+
+# E2. If there are any duplicate activity in the file, the column-names will get appended with .1,.2,etc. 
+# Replace them with x,y,z  
+colnames(tbXTest) <- gsub('\\.1','y',gsub('\\.2','z',gsub('\\.3','w',colnames(tbXTest))))
+
+# E3. Add seq# to each record to join them with other datasets later
+tbXTest <- mutate(tbXTest, sequenceid = row_number())
+
+# E4. Load Y data, (activity-label)
+# Each row identifies the activity performed by the subject for each window sample. Its range is from 1 to 6
+tbYTest <- tbl_df(read.table("./UCI HAR Dataset/test/Y_test.txt",header = FALSE, 
+                             col.names = c('activityid')))
+
+# E5. Add seq# to each record to join them with other datasets later
+tbYTest <- mutate(tbYTest, sequenceid = row_number())
+
+
+# E6. load subject data - 9 out of 30 subjects
+# Each row identifies the subject who performed the activity for each window sample. Its range is from 1 to 30
+tbSubjectTest <- tbl_df(read.table("./UCI HAR Dataset/test/subject_test.txt",sep = "", header = FALSE,
+                                   col.names = c('subjectid')))
+
+# E7. Add seq# to each record to join them with other datasets later
+tbSubjectTest <- mutate(tbSubjectTest, sequenceid = row_number())
+```
+
+
+## Tidy up data 
+
+
+**1. Merge the training and test sets**
+  
+All the corresponding/relational data from feature-measurement(X data), subject data, activity (Y data) and activityLabels is combined for each group using **left_join** (*dplyr* package) and then are merged together to create a new dataset mergedDataset using **bind_rows** (*dplyr* package). 
+The Measurement data (xTrain/xTest) is joined to subject data (subjectTrain/subjectTest) using sequenceid (sequence number within the file ), and then joined to activity data (yTrain/yTest) using sequenceid (sequence number within the file ), and activity is updated from activityLabels table using activityid. Then the merged data for the "train" data set group and "test" data set group are merged into one table mergedDataset. 
+
+```{r tidy_data1, echo=TRUE, eval=FALSE}
+##
+## Step 1. Merge the training and the test sets to create one data set.
+##
+
+# update X data with subject data, activity (Y data) and activity-description -  for both train and test data set And combine them
+
+#1.A combine train data
+mergedDatasetTrain <- xTrain %>% 
+    left_join(subjectTrain, by = "sequenceid") %>%    ## append subject ID data from subject file by seq# 
+    left_join(yTrain, by = "sequenceid") %>%          ## append activiy ID from Y file by seq#
+    #left_join(activityLabels, by = "activityid") %>% ## append activity-name from activity file based on Id
+    mutate(datagroup = "train")                       ## append a field to mark as 'Train" data set
+
+#1.B combine test data
+mergedDatasetTest <- xTest %>% 
+    left_join(subjectTest, by = "sequenceid") %>%     ## append subject ID data from subject file by seq# 
+    left_join(yTest, by = "sequenceid") %>%           ## append activiy ID from Y file by seq#
+    #left_join(activityLabels, by = "activityid") %>% ## append activity-name from activity file based on Id
+    mutate(datagroup = "test")                        ## append a field to mark as 'Test" data set
+
+
+
+# 1.c combine both train and test datasets into one table
+mergedDataset <- bind_rows(mergedDatasetTrain, mergedDatasetTest) ;  
+
+rm(mergedDatasetTrain);
+rm(mergedDatasetTest);
+
+```
+  
+  
+**2. Extract the measurements on the mean and standard deviation for each measurement**
+  
+The columns with mean and std functions are extracted out to create a smaller/tidy data set.
+
+First the id of features that has mean() or std() in it (not columns like meanFreq) are identified using **grep** and the corresponding ids (which will also be order of columns in mergedDataset) are stored into an integer vector ( using unlist & array to convert the 1-dimensional data frame to unnamed integer vector). These ids are then used to subset the columns with "mean" and "std" in the mergedDataset using **select** and saved as a new table, tidyDataset.
+
+
+```{r tidy_data2, echo=TRUE, eval=FALSE}
+##
+## Step 2. Extracts only the measurements on the mean and standard deviation for each measurement.
+##
+
+
+# get the id of features that has mean() or std() in it (not columns like meanFreq)
+# using unlist & array convert the 1-dimensional data frame to unnamed integer array
+
+columns <- features %>% filter(grepl('mean()', featureRaw, fixed=TRUE) |
+                            grepl('std()', featureRaw, fixed=TRUE));
+
+columnsOfInterest <- unlist(array(select(columns,featureid)));
+
+# subset the columns based on activityid (of mean() and std()), which is also the index of columns
+# (because the measurement in X data was in the same order as values/rows in feature list, so is the merged data)
+tidyDataset <- select(
+    mergedDataset,
+    datagroup, sequenceid, subjectid, activityid,
+    columnsOfInterest
+);
+
+# Alternate option:
+
+# tidyDataset <- select(mergedDataset, 
+#                         datagroup, sequenceid, subjectid, activityid, activity, 
+#                         contains('mean'), contains("std"), 
+#                         -contains('meanfreq'), -starts_with('angle')  ## ignore columns that are not really mean()
+#                         )
+
+```
+  
+  
+**3. Use descriptive activity names to name the activities in the data set**
+
+The activiy description from the activity-labels.txt is reformated to be lowercase and have only Alphanumeric characters. This value is added to the mergedDataSet based on the activityid in the Y file as part of populating mergedDataset.
+
+```{r tidy_data3, echo=TRUE, eval=FALSE}
+
+##
+## Step 3 Uses descriptive activity names to name the activities in the data set
+##
+
+# The activiy description from the activity-labels.txt is reformated to be all lowercase without any punctuations.
+#   This value is added to the mergedDataSet based on the activityId in the Y file 
+
+tidyDataset <- tidyDataset %>% 
+    left_join(activityLabels, by = "activityid") %>%   ## append activity-name from activity file based on Id
+    select(1:4, activity, 5:70)                         ## insert the activity column right after activityId
+
+```
+  
+  
+**4. Appropriately labels the data set with descriptive variable names**
+
+The measurement variables from the features.txt is cleaned up to tidy and this value is used as the column-name of the measurement variables while loading X data, and is carried over to mergedDataSet and then to tidyDataset. 
+The following steps were taken to tidy up the data:  
+* Removed all non-alphanumeric characters (punctuations)   
+* converted the text to lower case (eventhough camelCase is better for readability, to keep complaint with the lecture slides this is converetd to lower case)  
+* Also the frequency domain measurement variables (starting with "f" are transalted to "frequency"  
+* And the time domain measurement variables (starting with "t" are translated to "time"  
+* The typographical error for "bodybody" was replaced with "body"  
+* There were some duplicate measurements (proably truncated due to size) are made unique by appending activityid to the description.  
+
+```{r tidy_data4, echo=TRUE, eval=FALSE}
+
+##
+## Step 4 Appropriately labels the data set with descriptive variable names. 
+##
+
+# The measurement varables from the features.txt is loaded into features table and is clened-up() to be lowercase and have only Alphanumeric characters) and stored in the column "feature". 
+# This value is used as the column-name of the measurement variables while loading X data, and is carried over to mergedDataSet, and thus into tidyDataset  
+
+# This is done along with x-data load in the previous steps D1, & E1, as part of loading xTrain & xTest
+
+# D1. load X data (measurement data), with column name as feature-name from feature-list
+xTrain <- tbl_df(read.table("./UCI HAR Dataset/train/X_train.txt", header = FALSE, fill = TRUE, 
+                            col.names = features$feature));
+# E1. load X data (measurement data), with column name as feature-name from feature-list
+tbXTest <- tbl_df(read.table("./UCI HAR Dataset/test/X_test.txt", header = FALSE, fill = TRUE, 
+                             col.names = tbFeatures$feature))
+
+```
+  
+**5. Summarize data**
+
+From the cleaned-up data, an independent tidy data set is derived with the average of each variable for each activity and each subject. This is done by by grouping subject and activity and summarized all the measurement variables to their mean value (using *summarize_each*). The column-names are prefixed with "avg" to indicate that it is the average measurement. All the non-measurement columns are converted to "factor".
+
+This tidy data is in the wide format, as tidy data can be either in wide or long format. The wording in the rubric also suggest that either wide or long format is acceptable. The goal is to have each variable you measure in one column, each different observation of that variable in a different row. In this case, the wide format satisy these condistions.
+
+
+```{r tidy_data5, echo=TRUE, eval=FALSE}
+##
+## Step 5. From the data set in step 4, creates a second, independent tidy data set with 
+##			the average of each variable for each activity and each subject.
+##
+
+# 5.1 All measurement variables are grouped by subject and activity and summarized by their mean value
+
+tidyDataSummary <-
+    tidyDataset %>%
+    group_by(activity, datagroup, subjectid) %>%
+    select(-sequenceid) %>% 
+    summarize_each(funs(mean), matches("mean"),matches("std")) %>%
+    arrange(activity, datagroup, subjectid)
+
+# set activity, datagroup, subjectid as factors
+tidyDataSummary$activity <- as.factor(tidyDataSummary$activity)
+tidyDataSummary$datagroup <- as.factor(tidyDataSummary$datagroup)
+tidyDataSummary$subjectid <- as.factor(tidyDataSummary$subjectid)
+#tidyDataSummary <- as.data.frame(unclass(tidyDataSummary))
+
+# column-names are appended with averge to reflect that its the averge value
+colnames(tidyDataSummary)[-(1:3)] <- paste0('avg', colnames(tidyDataSummary)[-(1:3)] )
+
+```
+
+
+## Final Deliverable:
+
+
+The summarized tidy data is written out to a file that can be used for later analysis. The format used is the default **write.table** format, which can be read back to R by anyone using the deafult **read.table** option with header=TRUE and row.names=FALSE.
+  
+  
+**Final Tidy Data**
+
+```{r output_data, echo=TRUE, eval=FALSE}
+
+write.table(tidyDataSummary, 'tidydata.txt',row.names = FALSE)
+```
+  
+  
+  
+**To view the Data**
+
+The below R code can be used to read data into R using "read.table".
+
+
+```{r view_data, echo=TRUE, eval=TRUE}
+
+# Load tidy data
+tidydata <- read.table('tidydata.txt', header = TRUE) 
+
+# View the data
+#View(tidydata)
+```
+  
+  
+**Variables**
+
+The list of columns in the final data set:
+
+```{r xtab, echo=FALSE, eval=TRUE, results='hide',message=FALSE}
+### Load xtable package to create/display table (install if needed)
+  if (! require("xtable")) {
+    install.packages('xtable'); 
+    library(xtable);
+  }
+```
+
+```{r var_data, echo=FALSE, eval=TRUE, results='asis'}
+     
+# get the column-names and description
+tabColumns <- 
+    bind_rows(
+        as.data.frame(rbind(
+            c(column='activity', measurement='activity performed'),
+            c(column='datagroup', measurement='test or train data group'),
+            c(column='subjectid', measurement='id for the subject')
+        ),stringsAsFactors=FALSE),
+        features %>%
+        filter(grepl('mean()', featureRaw, fixed = TRUE) |
+                   grepl('std()', featureRaw, fixed = TRUE)) %>%
+        mutate(featureRaw = paste0('avg of ',featureRaw), feature = paste0('avg',feature)) %>%
+        rename(id = featureid, column = feature, measurement = featureRaw) %>%
+        select(column, measurement)
+    )
+
+# use xtable to print as table
+tabColumns <-xtable(tabColumns)
+print(tabColumns, type='html')
+
+```
+  
+  
+  
+**Details about each measurement variable**:
+
+The features selected for this database come from the accelerometer and gyroscope 3-axial raw signals tAcc-XYZ and tGyro-XYZ. These time domain signals (prefix 't' to denote time) were captured at a constant rate of 50 Hz. Then they were filtered using a median filter and a 3rd order low pass Butterworth filter with a corner frequency of 20 Hz to remove noise. Similarly, the acceleration signal was then separated into body and gravity acceleration signals (tBodyAcc-XYZ and tGravityAcc-XYZ) using another low pass Butterworth filter with a corner frequency of 0.3 Hz. 
+
+Subsequently, the body linear acceleration and angular velocity were derived in time to obtain Jerk signals (tBodyAccJerk-XYZ and tBodyGyroJerk-XYZ). Also the magnitude of these three-dimensional signals were calculated using the Euclidean norm (tBodyAccMag, tGravityAccMag, tBodyAccJerkMag, tBodyGyroMag, tBodyGyroJerkMag). 
+
+Finally a Fast Fourier Transform (FFT) was applied to some of these signals producing fBodyAcc-XYZ, fBodyAccJerk-XYZ, fBodyGyro-XYZ, fBodyAccJerkMag, fBodyGyroMag, fBodyGyroJerkMag. (Note the 'f' to indicate frequency domain signals). 
+
+These signals were used to estimate variables of the feature vector for each pattern:  
+'-XYZ' is used to denote 3-axial signals in the X, Y and Z directions.
+
+    tBodyAcc-XYZ
+    tGravityAcc-XYZ
+    tBodyAccJerk-XYZ
+    tBodyGyro-XYZ
+    tBodyGyroJerk-XYZ
+    tBodyAccMag
+    tGravityAccMag
+    tBodyAccJerkMag
+    tBodyGyroMag
+    tBodyGyroJerkMag
+    fBodyAcc-XYZ
+    fBodyAccJerk-XYZ
+    fBodyGyro-XYZ
+    fBodyAccMag
+    fBodyAccJerkMag
+    fBodyGyroMag
+    fBodyGyroJerkMag
+
+The set of variables that were estimated from these signals are: 
+
+    mean(): Mean value
+    std(): Standard deviation
+    mad(): Median absolute deviation 
+    max(): Largest value in array
+    min(): Smallest value in array
+    sma(): Signal magnitude area
+    energy(): Energy measure. Sum of the squares divided by the number of values. 
+    iqr(): Interquartile range 
+    entropy(): Signal entropy
+    arCoeff(): Autorregresion coefficients with Burg order equal to 4
+    correlation(): correlation coefficient between two signals
+    maxInds(): index of the frequency component with largest magnitude
+    meanFreq(): Weighted average of the frequency components to obtain a mean frequency
+    skewness(): skewness of the frequency domain signal 
+    kurtosis(): kurtosis of the frequency domain signal 
+    bandsEnergy(): Energy of a frequency interval within the 64 bins of the FFT of each window.
+    angle(): Angle between to vectors.
+
+Additional vectors obtained by averaging the signals in a signal window sample. These are used on the angle() variable:
+
+    gravityMean   
+    tBodyAccMean   
+    tBodyAccJerkMean  
+    tBodyGyroMean   
+    tBodyGyroJerkMean   
+
+The complete list of variables of each feature vector is available in [features.txt](https://github.com/snrajesh/GettingAndCleaningData_Project/blob/master/UCI%20HAR%20Dataset/features.txt)
+  
+  
+**Data Fields**
+
+Summary of data and data variables can be viewed using str and summary.
+
+```{r}
+str(tidydata)
+
+summary(tidydata)
+
+head(tidydata,1)
+
+
+```
+  
+  
+  
+# Sources
+
+Raw Data: https://d396qusza40orc.cloudfront.net/getdata%2Fprojectfiles%2FUCI%20HAR%20Dataset.zip
+
+Description about the study: http://archive.ics.uci.edu/ml/datasets/Human+Activity+Recognition+Using+Smartphones
+
+R Code used for analysis : [run_analysis.R](https://github.com/snrajesh/GettingAndCleaningData_Project/blob/master/run_analysis.R)
+
+
+```{r, eval=FALSE, echo=FALSE}
+# to create .md file from .rmd file
+
+#library(knitr)
+#knit2html("CodeBook.Rmd")
+#browseURL("CodeBook.html")
+```
